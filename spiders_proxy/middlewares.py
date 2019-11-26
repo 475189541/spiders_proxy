@@ -6,7 +6,17 @@
 # https://doc.scrapy.org/en/latest/topics/spider-middleware.html
 
 from scrapy import signals
-from scrapy.contrib.downloadermiddleware.retry import RetryMiddleware
+from twisted.internet import defer
+from twisted.internet.error import TimeoutError
+from twisted.internet.error import DNSLookupError
+from twisted.internet.error import ConnectionRefusedError
+from twisted.internet.error import ConnectionDone
+from twisted.internet.error import ConnectError
+from twisted.internet.error import ConnectionLost
+from twisted.internet.error import TCPTimedOutError
+from twisted.web.client import ResponseFailed
+from scrapy.core.downloader.handlers.http11 import TunnelError
+from scrapy.http import HtmlResponse
 
 
 class SpidersProxySpiderMiddleware(object):
@@ -104,19 +114,23 @@ class SpidersProxyDownloaderMiddleware(object):
         spider.logger.info('Spider opened: %s' % spider.name)
 
 
-class HttpbinProxyMiddleware(RetryMiddleware):
+class HttpbinProxyMiddleware(object):
+    ALL_EXCEPTIONS = (defer.TimeoutError, TimeoutError, DNSLookupError, ConnectionRefusedError, ConnectionDone,
+                      ConnectError, ConnectionLost, TCPTimedOutError, ResponseFailed, IOError, TunnelError)
 
     def process_request(self, request, spider):
         spider.logger.info('proxy: %s' % request.meta.get('proxy'))
 
     def process_exception(self, request, exception, spider):
-        if isinstance(exception, self.EXCEPTIONS_TO_RETRY) and not request.meta.get('dont_retry', False):
+        if isinstance(exception, self.ALL_EXCEPTIONS):
             proxy = request.meta.get('proxy')
-            if proxy:
-                spider.redis_connection.srem("proxy", proxy)
-            return self._retry(request, exception, spider)
-
-
-
+            if proxy: spider.redis_connection.srem("proxy", proxy)
+            msg = 'url: %s ; proxy: %s ; error_msg: %s ;' % (request.url, proxy, exception)
+            spider.logger.warning(msg=msg)
+        response = HtmlResponse(url=request.url)
+        response.status = 500
+        response.request = request
+        response.headers = request.headers
+        return response
 
 
