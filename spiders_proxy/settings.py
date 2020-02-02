@@ -89,3 +89,17 @@ ITEM_PIPELINES = {
 #HTTPCACHE_DIR = 'httpcache'
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
+
+
+# 阿里云线上环境
+# redis_host = '172.18.67.43'        # redis的地址
+# redis_password = 'gannicus'        # redis密码
+# redis_port = 6379                  # redis端口
+
+
+# 本地线上环境
+redis_host = '120.78.0.80'         # redis的端口号
+redis_password = 'gannicus'
+redis_port = 6379
+
+
