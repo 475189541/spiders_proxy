@@ -13,7 +13,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
         'RETRY_ENABLED': False,
         # 'RETRY_TIMES': 1,
         'HTTPERROR_ALLOWED_CODES': [500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510],
-        'DOWNLOAD_DELAY ': 1,
+        'DOWNLOAD_DELAY ': 0.5,
         'DOWNLOAD_TIMEOUT': 2,
         # 'LOG_LEVEL': 'WARNING',
         'LOG_LEVEL': 'ERROR',
