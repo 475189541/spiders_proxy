@@ -13,8 +13,10 @@ class SpidersHttpProxySpider(scrapy.Spider):
         'RETRY_ENABLED': False,
         # 'RETRY_TIMES': 1,
         'HTTPERROR_ALLOWED_CODES': [500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510],
-        'DOWNLOAD_DELAY ': 0.5,
-        'DOWNLOAD_TIMEOUT': 2,
+        'RANDOMIZE_DOWNLOAD_DELAY': False,
+        'CONCURRENT_REQUESTS_PER_DOMAIN': 1,
+        'DOWNLOAD_DELAY ': 2,
+        'DOWNLOAD_TIMEOUT': 3,
         # 'LOG_LEVEL': 'WARNING',
         'LOG_LEVEL': 'ERROR',
     }
@@ -29,28 +31,30 @@ class SpidersHttpProxySpider(scrapy.Spider):
     def analysis_proxy(self, ip_type, ip, port):
         proxy = '%s://%s:%s' % (ip_type, ip, port)
         url = self.httpsbin_url if ip_type == 'https' else self.httpbin_url
-        request = scrapy.Request(url=url, dont_filter=True, callback=self.parse_analysis, meta={'proxy': proxy})
+        meta = {'proxy': proxy, 'download_slot': proxy}
+        request = scrapy.Request(url=url, dont_filter=True, callback=self.parse_analysis, meta=meta)
         return request
 
     def start_requests(self):
-        yield scrapy.Request(url=self.httpbin_url, dont_filter=True, callback=self.parse_redis_analysis)
-        xici_url_list = [['https://www.xicidaili.com/nn/%s' % i, self.parse_xicidaili] for i in range(1, 3)]
+        # xici_url_list = [['https://www.xicidaili.com/nn/%s' % i, self.parse_xicidaili] for i in range(1, 3)]
         url_list = [
+            [self.httpbin_url, self.parse_redis_analysis],
             ['http://www.data5u.com', self.parse_data5u],
             ['http://www.goubanjia.com/', self.parse_goubanjia],
         ] + [[f'http://www.66daili.cn/showProxySingle/{i}/', self.parse_66ip] for i in range(6125, 10, -1)]
         for url in url_list:
-            yield scrapy.Request(url=url[0], callback=url[1], dont_filter=True)
+            yield scrapy.Request(url=url[0], callback=url[1], dont_filter=True, meta={'download_slot': url[0]})
 
     def parse_redis_analysis(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
+            url = response.url
             proxy_set = self.redis_connection.smembers('proxy')
             for proxy in proxy_set:
                 p = proxy.decode('utf-8')
                 dumps_list = p.split(':')
                 request = self.analysis_proxy(ip_type=dumps_list[0], ip=dumps_list[1].strip('/'), port=dumps_list[2])
                 yield request
-            yield scrapy.Request(url=response.url, dont_filter=True, callback=self.parse_redis_analysis)
+            yield scrapy.Request(url=url, dont_filter=True, callback=self.parse_redis_analysis, meta={'download_slot': url})
 
     def parse_data5u(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
@@ -63,7 +67,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
                 port = int(port_dumps) if port_dumps <= 9999 else 9999
                 request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
                 yield request
-            yield scrapy.Request(url=response.url, callback=self.parse_data5u, dont_filter=True)
+            yield scrapy.Request(url=response.url, callback=self.parse_data5u, dont_filter=True, meta={'download_slot': response.url})
 
     def parse_66ip(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
@@ -75,7 +79,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
                 yield request
                 request = self.analysis_proxy(ip_type='https', ip=ip, port=port)
                 yield request
-            yield scrapy.Request(url=response.url, callback=self.parse_66ip, dont_filter=True)
+            yield scrapy.Request(url=response.url, callback=self.parse_66ip, dont_filter=True, meta={'download_slot': response.url})
 
     def parse_xicidaili(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
@@ -99,7 +103,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
                 port = int(port_dumps) if port_dumps <= 9999 else 9999
                 request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
                 yield request
-            yield scrapy.Request(url=response.url, callback=self.parse_goubanjia, dont_filter=True)
+            yield scrapy.Request(url=response.url, callback=self.parse_goubanjia, dont_filter=True, meta={'download_slot': response.url})
 
     def parse_analysis(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
