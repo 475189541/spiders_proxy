@@ -16,7 +16,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
         'RANDOMIZE_DOWNLOAD_DELAY': False,
         'CONCURRENT_REQUESTS_PER_DOMAIN': 1,
         'DOWNLOAD_DELAY ': 2,
-        'DOWNLOAD_TIMEOUT': 3,
+        'DOWNLOAD_TIMEOUT': 5,
         # 'LOG_LEVEL': 'WARNING',
         'LOG_LEVEL': 'ERROR',
     }
@@ -90,7 +90,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
                 ip_type = tr.xpath('./td[6]/text()').extract_first().lower()
                 request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
                 yield request
-            yield scrapy.Request(url=response.url, callback=self.parse_xicidaili, dont_filter=True)
+            yield scrapy.Request(url=response.url, callback=self.parse_xicidaili, dont_filter=True, meta={'download_slot': response.url})
 
     def parse_goubanjia(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
