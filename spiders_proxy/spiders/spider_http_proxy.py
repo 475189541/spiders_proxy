@@ -16,7 +16,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
         'RANDOMIZE_DOWNLOAD_DELAY': False,
         'CONCURRENT_REQUESTS_PER_DOMAIN': 1,
         'DOWNLOAD_DELAY ': 2,
-        'DOWNLOAD_TIMEOUT': 5,
+        'DOWNLOAD_TIMEOUT': 15,
         # 'LOG_LEVEL': 'WARNING',
         'LOG_LEVEL': 'ERROR',
     }
