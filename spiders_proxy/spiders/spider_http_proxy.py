@@ -18,7 +18,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
         'DOWNLOAD_DELAY ': 2,
         'DOWNLOAD_TIMEOUT': 15,
         # 'LOG_LEVEL': 'WARNING',
-        'LOG_LEVEL': 'ERROR',
+        'LOG_LEVEL': 'WARNING',
     }
 
     def __init__(self, **kwargs):
@@ -38,23 +38,11 @@ class SpidersHttpProxySpider(scrapy.Spider):
     def start_requests(self):
         # xici_url_list = [['https://www.xicidaili.com/nn/%s' % i, self.parse_xicidaili] for i in range(1, 3)]
         url_list = [
-            [self.httpbin_url, self.parse_redis_analysis],
             ['http://www.data5u.com', self.parse_data5u],
             ['http://www.goubanjia.com/', self.parse_goubanjia],
         ] + [[f'http://www.66daili.cn/showProxySingle/{i}/', self.parse_66ip] for i in range(6125, 10, -1)]
         for url in url_list:
             yield scrapy.Request(url=url[0], callback=url[1], dont_filter=True, meta={'download_slot': url[0]})
-
-    def parse_redis_analysis(self, response):
-        if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
-            url = response.url
-            proxy_set = self.redis_connection.smembers('proxy')
-            for proxy in proxy_set:
-                p = proxy.decode('utf-8')
-                dumps_list = p.split(':')
-                request = self.analysis_proxy(ip_type=dumps_list[0], ip=dumps_list[1].strip('/'), port=dumps_list[2])
-                yield request
-            yield scrapy.Request(url=url, dont_filter=True, callback=self.parse_redis_analysis, meta={'download_slot': url})
 
     def parse_data5u(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
