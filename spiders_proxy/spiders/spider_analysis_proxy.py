@@ -25,7 +25,6 @@ class SpidersAnalysisProxySpider(scrapy.Spider):
         self.httpbin_url = 'http://httpbin.org/ip'
         self.httpsbin_url = 'https://httpbin.org/ip'
         self.redis_connection = redis.Redis(host=redis_host, password=redis_password, port=redis_port, db=1)
-        self.data5u_code_table = {chr(c): str(i) for i, c in enumerate(list(range(65, 91)))}
 
     def analysis_proxy(self, ip_type, ip, port):
         proxy = '%s://%s:%s' % (ip_type, ip, port)
