@@ -26,7 +26,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
         self.httpbin_url = 'http://httpbin.org/ip'
         self.httpsbin_url = 'https://httpbin.org/ip'
         self.redis_connection = redis.Redis(host=redis_host, password=redis_password, port=redis_port, db=1)
-        self.data5u_code_table = {chr(c): str(i) for i, c in enumerate(list(range(65, 91)))}
+        self.data5u_code_table = {chr(c): int(i) for i, c in enumerate(list(range(65, 91)))}
 
     def analysis_proxy(self, ip_type, ip, port):
         proxy = '%s://%s:%s' % (ip_type, ip, port)
@@ -51,7 +51,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
                 ip_type = tr.xpath('./span[4]/li/text()').extract_first().strip().lower()
                 ip = tr.xpath('./span[1]/li/text()').extract_first().strip()
                 code = tr.xpath('./span[2]/li/@class').extract_first().strip().lstrip('port').strip()
-                port_dumps = int(''.join([self.data5u_code_table[c] for c in code])) / 8
+                port_dumps = int(''.join([str(self.data5u_code_table[c]) if self.data5u_code_table[c] < 10 else '9' for c in code])) / 8
                 port = int(port_dumps) if port_dumps <= 9999 else 9999
                 request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
                 yield request
@@ -87,7 +87,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
                 ip_type = ''.join(tr.xpath('./td[3]//text()').extract()).strip().lower()
                 ip = ''.join(map(lambda x: x.xpath('./text()').extract_first(''), filter(lambda f: not f.xpath('./@style').extract_first('').endswith('none;') and not f.xpath('./@class').extract_first('').startswith('port'), tr.xpath('./td[@class="ip"]/*'))))
                 code = tr.xpath('./td[@class="ip"]/span[starts-with(@class, "port")]/@class').extract_first().strip().lstrip('port').strip()
-                port_dumps = int(''.join([self.data5u_code_table[c] for c in code])) / 8
+                port_dumps = int(''.join([str(self.data5u_code_table[c]) if self.data5u_code_table[c] < 10 else '9' for c in code])) / 8
                 port = int(port_dumps) if port_dumps <= 9999 else 9999
                 request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
                 yield request
