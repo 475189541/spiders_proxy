@@ -17,7 +17,7 @@ class SpidersAnalysisProxySpider(scrapy.Spider):
         'CONCURRENT_REQUESTS_PER_DOMAIN': 1,
         'DOWNLOAD_DELAY ': 2,
         # 'LOG_LEVEL': 'WARNING',
-        'LOG_LEVEL': 'WARNING',
+        'LOG_LEVEL': 'ERROR',
     }
 
     def __init__(self, **kwargs):
@@ -34,18 +34,19 @@ class SpidersAnalysisProxySpider(scrapy.Spider):
         return request
 
     def start_requests(self):
-        yield scrapy.Request(url=self.httpbin_url, callback=self.parse_redis_analysis, dont_filter=True, meta={'download_slot': self.httpbin_url})
+        meta = {'download_slot': self.httpbin_url}
+        yield scrapy.Request(url=self.httpbin_url, callback=self.parse_redis_analysis, dont_filter=True, meta=meta)
 
     def parse_redis_analysis(self, response):
+        url = response.url
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
-            url = response.url
             proxy_set = self.redis_connection.smembers('proxy')
             for proxy in proxy_set:
                 p = proxy.decode('utf-8')
                 dumps_list = p.split(':')
                 request = self.analysis_proxy(ip_type=dumps_list[0], ip=dumps_list[1].strip('/'), port=dumps_list[2])
                 yield request
-            yield scrapy.Request(url=url, dont_filter=True, callback=self.parse_redis_analysis, meta={'download_slot': url})
+        yield scrapy.Request(url=url, dont_filter=True, callback=self.parse_redis_analysis, meta={'download_slot': url})
 
     def parse_analysis(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
