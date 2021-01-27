@@ -7,7 +7,8 @@ from spiders_proxy.settings import redis_host, redis_password, redis_port
 
 class SpidersHttpProxySpider(scrapy.Spider):
     name = 'spiders_http_proxy'
-    allowed_domains = ['httpbin.org', 'www.xicidaili.com', 'www.data5u.com', 'www.66daili.cn', 'www.goubanjia.com']
+    allowed_domains = ['httpbin.org', 'www.xicidaili.com', 'www.data5u.com', 'www.66daili.cn', 'www.goubanjia.com',
+                       'www.ip3366.net']
     custom_settings = {
         'ITEM_PIPELINES': {'spiders_proxy.pipelines.SpidersProxyPipeline': 300},
         'DOWNLOADER_MIDDLEWARES': {'scrapy.contrib.downloadermiddleware.retry.RetryMiddleware': None,
@@ -30,6 +31,7 @@ class SpidersHttpProxySpider(scrapy.Spider):
         self.redis_connection = redis.Redis(host=redis_host, password=redis_password, port=redis_port, db=1)
         self.data5u_code_table = {chr(c): int(i) for i, c in enumerate(list(range(65, 91)))}
         self.pattern_ip_type = re.compile('http[s]?', re.I)
+        self.pattern_num = re.compile('(\d+)')
 
     def future_tasks(self, args_list, func):
         with ThreadPoolExecutor(max_workers=16, thread_name_prefix=f"future_tasks_") as threadPool:
@@ -51,13 +53,6 @@ class SpidersHttpProxySpider(scrapy.Spider):
         request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
         return request
 
-    def tool_xicidaili(self, tr):
-        ip = tr.xpath('./td[2]/text()').extract_first()
-        port = tr.xpath('./td[3]/text()').extract_first()
-        ip_type = tr.xpath('./td[6]/text()').extract_first().lower()
-        request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
-        return request
-
     def tool_goubanjia(self, tr):
         ip_type = ''.join(tr.xpath('./td[3]//text()').extract()).strip().lower()
         ip = ''.join(map(lambda x: x.xpath('./text()').extract_first(''), filter(lambda f: not f.xpath('./@style').extract_first('').endswith('none;') and not f.xpath('./@class').extract_first('').startswith('port'), tr.xpath('./td[@class="ip"]/*'))))
@@ -67,19 +62,28 @@ class SpidersHttpProxySpider(scrapy.Spider):
         request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
         return request
 
+    def tool_3366ip(self, tr):
+        ip = tr.xpath('./td[1]/text()').extract_first()
+        port = tr.xpath('./td[2]/text()').extract_first()
+        ip_type = tr.xpath('./td[4]/text()').extract_first().lower()
+        request = self.analysis_proxy(ip_type=ip_type, ip=ip, port=port)
+        return request
+
     def analysis_proxy(self, ip_type, ip, port):
         proxy = '%s://%s:%s' % (ip_type, ip, port)
         url = self.httpsbin_url if ip_type == 'https' else self.httpbin_url
         meta = {'proxy': proxy, 'download_slot': proxy}
-        request = scrapy.Request(url=url, dont_filter=True, callback=self.parse_analysis, meta=meta)
+        headers = {'Referer': ''}
+        request = scrapy.Request(url=url, dont_filter=True, callback=self.parse_analysis, meta=meta, headers=headers)
         return request
 
     def start_requests(self):
-        # xici_url_list = [['https://www.xicidaili.com/nn/%s' % i, self.parse_xicidaili] for i in range(1, 3)]
         url_list = [
             ['http://www.data5u.com', self.parse_data5u],
             ['http://www.goubanjia.com/', self.parse_goubanjia],
-            ['http://www.66daili.cn/', self.parse_66ip_base]
+            ['http://www.66daili.cn/', self.parse_66ip_base],
+            # ['http://www.ip3366.net/free/?stype=1', self.parse_3366ip_base],
+            # ['http://www.ip3366.net/free/?stype=2', self.parse_3366ip_base],
         ]
         for url in url_list:
             yield scrapy.Request(url=url[0], callback=url[1], dont_filter=True, meta={'download_slot': url[0]})
@@ -116,15 +120,6 @@ class SpidersHttpProxySpider(scrapy.Spider):
             all_task = self.future_tasks(args_list, self.tool_66ip)
             for task in all_task: yield task.result()
 
-    def parse_xicidaili(self, response):
-        if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
-            tr_tree = response.xpath('//table[@id="ip_list"]/tr[@class]')
-            args_list = [(tr, ) for tr in tr_tree]
-            all_task = self.future_tasks(args_list, self.tool_xicidaili)
-            for task in all_task: yield task.result()
-        meta = {'download_slot': response.url}
-        yield scrapy.Request(url=response.url, callback=self.parse_xicidaili, dont_filter=True, meta=meta)
-
     def parse_goubanjia(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
             tr_tree = response.xpath('//table[@class="table table-hover"]/tbody/tr')
@@ -133,6 +128,25 @@ class SpidersHttpProxySpider(scrapy.Spider):
             for task in all_task: yield task.result()
         meta = {'download_slot': response.url}
         yield scrapy.Request(url=response.url, callback=self.parse_goubanjia, dont_filter=True, meta=meta)
+
+    def parse_3366ip_base(self, response):
+        url_base = response.url
+        meta = {'download_slot': url_base}
+        if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
+            dump = response.xpath('//div[@id="listnav"]/ul/strong/text()').extract_first()
+            page = ''.join(self.pattern_num.findall(dump))
+            page_num = int(page) if page else 1
+            for p in range(1, page_num + 1):
+                url = url_base + f'&page={p}'
+                yield scrapy.Request(url=url, callback=self.parse_3366ip, dont_filter=True, meta=meta)
+        # yield scrapy.Request(url=response.url, callback=self.parse_3366ip_base, dont_filter=True, meta=meta)
+
+    def parse_3366ip(self, response):
+        if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
+            tr_tree = response.xpath('//div[@id="list"]/table/tbody/tr')
+            args_list = [(tr,) for tr in tr_tree]
+            all_task = self.future_tasks(args_list, self.tool_3366ip)
+            for task in all_task: yield task.result()
 
     def parse_analysis(self, response):
         if response.status not in self.custom_settings['HTTPERROR_ALLOWED_CODES']:
